@@ -25,7 +25,7 @@ class RPN(nn.Module):
     input: a feature map
     output: proposals(6k * N * M)
     """
-    def __init__(self, in_channels, k=9):
+    def __init__(self, in_channels=512, k=9):
         """
         - kernel size = 3, padding = 1
         - Assuming the feature map has the size of N, 
