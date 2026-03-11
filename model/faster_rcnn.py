@@ -1,21 +1,25 @@
 import torch
 import torch.nn as nn
 # from torchvision.models import vgg16, VGG16_Weights
+from torchvision.ops import nms
 
 class FasterRCNN(nn.Module):
     """
     A brief structure of Fast R-CNN
     """
-    def __init__(self, backbone, rpn, fast_rcnn):
+    def __init__(self, backbone, rpn, fast_rcnn, img_size, k):
         super().__init__
         self.backbone = backbone
         self.rpn = rpn
         self.fast_rcnn = fast_rcnn
 
+        self.k = k
+        self.img_size = img_size
+
     def forward(self, input_image):
         feature_map = self.backbone(input_image)
         cls_score, bbox_pred = self.rpn(feature_map)
-        proposals = self.rpn.calProposals(cls_score, bbox_pred)
+        proposals = calProposals(cls_score, bbox_pred, self.img_size, self.k)
 
         results = self.fast_rcnn(feature_map, proposals)
         return results
@@ -40,8 +44,6 @@ class RPN(nn.Module):
         x = torch.relu(self.midLayer(input_image))
         return self.clsLayer(x), self.regLayer(x)
 
-    def calProposals(self, cls_score, bbox_pred):
-        pass
 
 class FastRCNN(nn.Module):
     """
@@ -64,3 +66,32 @@ class FastRCNN(nn.Module):
         x_flatten = x.view(x.size(0), -1)
         feat = self.classifier(x_flatten)
         return self.cls_head(feat), self.reg_head(feat)
+    
+
+def calProposals(cls_scores, bbox_preds, anchors, img_size, k):
+    scores = cls_scores[:, k:, :, :]
+
+    proposals = apply_delta_to_anchors(anchors, bbox_preds)
+    proposals = clip_boxes(proposals, img_size)
+    
+    order = scores.argsort(descending=True)
+    proposals = proposals[order]
+
+    keep_idx = nms(proposals, scores, iou_threshold=0.7)
+    proposals = proposals[keep_idx[:300]]
+    return proposals
+
+def apply_delta_to_anchors():
+    pass
+
+def clip_boxes(proposals, img_size):
+    for proposal in proposals:
+        # [x_min, y_min, x_max, y_max]
+        if proposal[0] < 0:
+            proposal[0] = 0
+        if proposal[1] < 0:
+            proposal[1] = 0
+        if proposal[2] >= img_size[0]:
+            proposal[2] = img_size[0] - 1
+        if proposal[3] >= img_size[1]:
+            proposal[3] = img_size[1] - 1
